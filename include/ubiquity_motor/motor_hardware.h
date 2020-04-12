@@ -71,6 +71,7 @@ struct MotorDiagnostics {
     bool left_max_speed_limit = false;
     bool right_max_speed_limit = false;
     bool param_limit_in_firmware = false;
+    bool battery_low_limit = false;
 
     // Power supply statuses
     float battery_voltage = 0.0;

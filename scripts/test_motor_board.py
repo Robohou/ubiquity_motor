@@ -42,7 +42,7 @@ import thread
 import smbus
 
 # simple version string
-g_version = "20190703"
+g_version = "20200315"
 
 # default serial device.  An  adapter in USB is often  '/dev/ttyUSB0'
 g_serialDev = '/dev/ttyAMA0' 
@@ -294,6 +294,19 @@ def setSpeedTillKeypress(ser, speed1, speed2):
     keyInput = intKeys[0]
     return keyInput
 
+
+# Fetches a single register full long word value given register number in hex
+def fetchRegister32(ser, cmdRegAsHex):
+    cmdRegNumber = int(cmdRegAsHex,16)
+    queryBytes = [ 0x7e, 0x3a, 0x34, 0, 0, 0, 0 ]
+    queryBytes[2] = cmdRegNumber
+    pktCksum = calcPacketCksum(queryBytes)
+    queryBytes.append(pktCksum)
+    ser.flushInput()
+    ser.write(queryBytes)
+    registerValue = fetchReplyLongWord(ser, '3c', cmdRegAsHex)
+    return registerValue
+
 def showHelp():
     logAlways("ONLY USE THIS LOW LEVEL UTILITY WITH EXPLICIT HELP FROM Ubiquity Robotics SUPPORT!")
     logAlways("ONLY RUN WHEN MAGNI IS STOPPED!. Use  sudo systemctl stop magni-base.service")
@@ -301,12 +314,13 @@ def showHelp():
     logAlways("Speeds:   Enter 0 - 9 fwd speed. n,N slow/fast reverse. s for 'any speed' or c cycle last fwd/reverse")
     logAlways("  v  - Query firmware and hw version setting      o - Query 8-bit hardware option port with real board rev")
     logAlways("  q  - Query a 16 bit word value from register.   Q - Query 32 bit register value")
-    logAlways("  S  - Set a word value from for any register.   Enter reg as hex and value as decimal")
+    logAlways("  S  - Set 32 bit value for any register.         t - Read selftest req/result bits and testpoints (rev 5.2)")
     logAlways("  21 = Hardware Rev (50 = 5.0)                   22 = Firmware version")
     logAlways("  32 = Query if firmware thinks motors active    33 = Set to 1 to enable any exit of ESTOP feature")
     logAlways("  34 = Set to max PID threshold where pre rev 5.0 boards did a safer ESTOP release. 0 to disable")
     logAlways("  35 = Set to the max forward limit speed        36 - Set to a max negative reverse limit speed")
     logAlways("  37 = Set max PWM setting [250]         ")
+    logAlways("  3b = Start selftest with supplied enable bits  3c - Readback last selftest results as bits")
     return 0
 
 
@@ -525,61 +539,11 @@ class serCommander():
                 print("Motor controller things motor power state is ", motPowState)
                 time.sleep(0.02)
 
-            if input == 'r':
-                logAlways("Rotate right ")
-                rightSpeed = 15
-                leftSpeed  = 6
-                nextInput = setSpeedTillKeypress(ser, rightSpeed, leftSpeed)
-
-            if input == 'q':          # query any register to any value
-                logAlways("Query any control register to any value up to one word size")
-                cmdRegAsHex = raw_input("Enter control register number in hex: ")
-                cmdRegNumber = int(cmdRegAsHex,16)
-                queryBytes = [ 0x7e, 0x3a, 0x34, 0, 0, 0, 0 ]
-                queryBytes[2] = cmdRegNumber
-                pktCksum = calcPacketCksum(queryBytes)
-                queryBytes.append(pktCksum)
-                ser.flushInput()
-                ser.write(queryBytes)
-                registerValue = fetchReplyWord(ser, '3c', cmdRegAsHex)
-                print("Register was set to  ", int(registerValue,16), " decimal", registerValue, " hex")
-                time.sleep(0.02)
-
-            if input == 'Q':          # query any register for a Long (32 bit value)
-                logAlways("Query any control register to any value up to one long word size")
-                cmdRegAsHex = raw_input("Enter control register number in hex: ")
-                cmdRegNumber = int(cmdRegAsHex,16)
-                queryBytes = [ 0x7e, 0x3a, 0x34, 0, 0, 0, 0 ]
-                queryBytes[2] = cmdRegNumber
-                pktCksum = calcPacketCksum(queryBytes)
-                queryBytes.append(pktCksum)
-                ser.flushInput()
-                ser.write(queryBytes)
-                registerValue = fetchReplyLongWord(ser, '3c', cmdRegAsHex)
-                print("Register was set to  ", int(registerValue,16), " decimal", registerValue, " hex")
-                time.sleep(0.02)
-
-            if input == 'S':          # Set any register to any value
-                logAlways("Set any control register to any value up to one word size")
-                cmdRegAsHex  = raw_input("Enter control register number in as hex digits:  ")
-                cmdRegValue  = raw_input("Enter control register value to be set in decimal: ")
-                cmdRegNumber = int(cmdRegAsHex,16)
-                cmdPacket = formMagniParamSetMessage(cmdRegNumber, cmdRegValue)
-                ser.write(cmdPacket)
-                time.sleep(0.02)
-                nextInput = setSpeedTillKeypress(ser, lastSpeed, lastSpeed)
-
-            if input == 'x':
-                logAlways("Exit after sending stop command")
-                cmdPacket = formMagniSpeedMessage(0, 0)
-                ser.write(cmdPacket)
-                exit()
 
             if input == 'o':          # Read the option bits and board rev and if motor power is on or not
+                logAlways("Query hardware version from I2C interface on motor controller board")
                 # i2c address of PCF8574 on the motor controller board
                 PCF8574 = 0x20
-
-                logAlways("Query hardware version from I2C interface on motor controller board")
                 i2cbus = smbus.SMBus(1)
                 print ("Setup 8-bit I2C port to set as inputs. Also detect if port is present")
                 portPresent = 0
@@ -600,10 +564,70 @@ class serCommander():
                     # The 4 board revision bits are negative logic.
                     # They are 0x0E for binary 1 which is board revision 5.0
                     # We will only change the revision when hardware capabilities are different
-                    boardRev = 49 + (15 - (inputPortBits & 0x0f))
-                    print ("Motor Controller Board Revision is: ", boardRev)
+                    revBits = 15 - (inputPortBits & 0x0f)
+                    boardRev = 49 + revBits
+                    print ("Motor Controller Board Revision is: ", boardRev, " 4-bit rev value from port is ",revBits)
                     optionBits = (inputPortBits & 0x70) >> 4
                     print ("Option jumper block is set to: (install a jumper sets a bit to 0)", optionBits)
+
+            if input == 'q':          # query any register to any value
+                logAlways("Query any control register to any value up to one word size")
+                cmdRegAsHex = raw_input("Enter control register number in hex: ")
+                cmdRegNumber = int(cmdRegAsHex,16)
+                queryBytes = [ 0x7e, 0x3a, 0x34, 0, 0, 0, 0 ]
+                queryBytes[2] = cmdRegNumber
+                pktCksum = calcPacketCksum(queryBytes)
+                queryBytes.append(pktCksum)
+                ser.flushInput()
+                ser.write(queryBytes)
+                registerValue = fetchReplyWord(ser, '3c', cmdRegAsHex)
+                print("Register was set to  ", int(registerValue,16), " decimal", registerValue, " hex")
+                time.sleep(0.02)
+
+            if input == 'Q':          # query any register for a Long (32 bit value)
+                logAlways("Query any control register to any value up to one long word size")
+                cmdRegAsHex = raw_input("Enter control register number in hex: ")
+                print("Register entered ")
+                registerValue = fetchRegister32(ser, cmdRegAsHex)
+                print("Register was set to  ", int(registerValue,16), " decimal", registerValue, " hex")
+                time.sleep(0.02)
+
+            if input == 'r':
+                logAlways("Rotate right ")
+                rightSpeed = 15
+                leftSpeed  = 6
+                nextInput = setSpeedTillKeypress(ser, rightSpeed, leftSpeed)
+
+            if input == 'S':          # Set any register to any value
+                logAlways("Set any control register to any value up to one word size")
+                cmdRegAsHex  = raw_input("Enter control register number in as hex digits:  ")
+                cmdRegValue  = raw_input("Enter control register value to be set in decimal: ")
+                cmdRegNumber = int(cmdRegAsHex,16)
+                logAlways("Reg set form cmd packet ")
+                cmdPacket = formMagniParamSetMessage(cmdRegNumber, cmdRegValue)
+                logAlways("Reg set cmd packet formed ")
+                ser.write(cmdPacket)
+                time.sleep(0.02)
+                # nextInput = setSpeedTillKeypress(ser, lastSpeed, lastSpeed)
+
+            if input == 't':          # query testpoint analog voltages
+                logAlways("Read the testpoints, TP1 for auxv and TP2 for mainv test")
+                registerValue = fetchRegister32(ser, '3b')
+                print("Selftest request bits ", registerValue, " hex")
+                registerValue = fetchRegister32(ser, '3c')
+                print("Selftest last result: ", registerValue, " hex")
+                registerValue = fetchRegister32(ser, '27')
+                print("AuxV  Testpoint 1:  ", int(registerValue,16), " decimal", registerValue, " hex")
+                time.sleep(0.02)
+                registerValue = fetchRegister32(ser, '25')
+                print("MainV Testpoint 2:  ", int(registerValue,16), " decimal", registerValue, " hex")
+                time.sleep(0.02)
+
+            if input == 'x':
+                logAlways("Exit after sending stop command")
+                cmdPacket = formMagniSpeedMessage(0, 0)
+                ser.write(cmdPacket)
+                exit()
 
 
             if input == 'v':

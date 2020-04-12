@@ -167,7 +167,8 @@ public:
         LIM_M2_INTEGRAL = 0x02,
         LIM_M1_MAX_SPD  = 0x40,
         LIM_M2_MAX_SPD  = 0x4,
-        LIM_PARAM_LIMIT = 0x80
+        LIM_PARAM_LIMIT = 0x80,
+        LIM_BATT_LOW    = 0x100
     };
 
     // State bits for motor power

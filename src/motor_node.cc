@@ -123,10 +123,10 @@ int main(int argc, char* argv[]) {
         robot->diag_updater.broadcast(0, "Establishing communication with motors");
         // Start times counter at 1 to prevent false error print (0 % n = 0)
         int times = 1;
-        while (ros::ok() && robot->firmware_version == 0) {
+        while (ros::ok() && (robot->firmware_version == 0)) {
             if (times % 30 == 0)
                 ROS_ERROR("The Firmware not reporting its version");
-                robot->requestFirmwareVersion();
+            robot->requestFirmwareVersion();
             robot->readInputs();
             ctrlLoopDelay.sleep();    // Allow controller to process command
             times++;

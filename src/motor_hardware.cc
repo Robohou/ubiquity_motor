@@ -154,7 +154,7 @@ void MotorHardware::readInputs() {
 
                 case MotorMessage::REG_FIRMWARE_DATE:
                     // Firmware date is only supported as of fw version MIN_FW_FIRMWARE_DATE
-                    ROS_INFO("Firmware date 0x%x (format 0xYYYYMMDD)", mm.getData());
+                    ROS_WARN_ONCE("Firmware date 0x%x (format 0xYYYYMMDD)", mm.getData());
                     firmware_date = mm.getData();
 		    motor_diag_.firmware_date = firmware_date;
                     break;
@@ -239,6 +239,10 @@ void MotorHardware::readInputs() {
                     if (data & MotorMessage::LIM_PARAM_LIMIT) {
                         ROS_WARN_ONCE("parameter limit in firmware");
 		    	motor_diag_.param_limit_in_firmware = true; 
+                    }
+                    if (data & MotorMessage::LIM_BATT_LOW) {
+                        ROS_WARN("battery voltage is low");
+		    	motor_diag_.battery_low_limit = true; 
                     }
                     break;
                 }
@@ -637,6 +641,10 @@ void MotorDiagnostics::limit_status(DiagnosticStatusWrapper &stat) {
         // A parameter was sent to firmware that was out of limits for the firmware register
         stat.mergeSummary(DiagnosticStatusWrapper::WARN, " firmware limit,");
 	param_limit_in_firmware = false;
+    }
+    if (battery_low_limit) {
+        stat.mergeSummary(DiagnosticStatusWrapper::ERROR, " battery low,");
+	battery_low_limit = false;
     }
 }
 
