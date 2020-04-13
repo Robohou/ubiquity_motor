@@ -9,20 +9,18 @@ We will use the term MCB for Master Controller Board (the main board containing 
 
 ## Firmware Revisions
 
-Below is presented a history of what was included or fixed for each firmware revision that was considered stable.
+Below is presented a history of what was included or fixed for each firmware revision with emphesis on stable versions.
 To do a firmware upgrade for the motor controller board please see our instructions [HERE](https://learn.ubiquityrobotics.com/firmware-upgrade)
 
 Firmware Revision History
 
-* `v35`  2019-08-15. Available as version v35 using upgrade_firmware tool and is not our default as of mid November 2019.
-    * THIS VERSION REQUIRES HOST SIDE CODE UPDATE TO Nov 15, 2019 apt upgrade or later to function properly!
-    * Doubles the wheel encoder resolution.
-    * Improves motor PID speed controller for added responsiveness as well as options for setting certain limits.
+* `v36`  2020-04-15. Is likely to be our version we ship with as of mid 2020.
+    * Includes a selftest for poweron or use later in runtime
+    * Does periodic monitoring of battery to show blink code and notify host when battery is low
 
-* `v33`  BETA Firmware. DO NOT USE THIS version.  Available as version v33 using upgrade_firmware tool and is not our default. Not to be used due to some defects.
+* `v33`  DO NOT USE THIS version.  Not to be used due to some defects.
     * If the wheels move when ESTOP switch is activated the Magni we do NOT jump upon ESTOP release
-    * Improved PID loop reset on detection of no motor power (ESTOP activated) so we are at a fully PID loop reset state on ESTOP release.
-    * DEFECT: On startup prior to first movement we can see a state sometimes where the motors are not in a 'breaking' state and we are looking into this.    This is reported so far if you don't fully reset the linux software but have power cycled the motor controller board which is possible when not using the Raspberry Pi as the CPU.
+    * DEFECT: On startup prior to first movement we can see a state sometimes where the motors are not in a 'breaking' state.    
 
 * `v32`  2019-03-25  This is our default latest stable firmware
     * Many improvements to ESTOP behavior to prevent large movements upon ESTOP release on rev 5.0 boards
@@ -34,7 +32,7 @@ Firmware Revision History
     * Parameter to set maximum PWM setting the motors can be set to so bad PID cooeficients cannot lead to dangerous movements of the Magni unit.
     * Build environment cleanup of unused files (not a 'fix' but needs to be mentioned to be complete
 
-* `v30`  2018-07-21
+* `v30` 2018-07-21 DO NOT USE THIS version.  Not to be used due to some defects.
     * Motor encoder inputs use double sync to prevent false readings that gave bad encoder readings
     * Improvements to the bootloader and firmware download mechanisms to be ready for production
 
@@ -47,6 +45,20 @@ Firmware Revision History
 The MCB hardware revisions start with those board revisions that may have ended up at sites outside of Ubiquity Robotics.   Below is a list in reverse time order of the boards and approximate time of first availability.
 
 To identify the motor controller board you have you can try to read the version very low on the top left side of the board or you can visit our website [HERE](https://learn.ubiquityrobotics.com/PC_Board_RevId)
+
+* `5.2` A major board release. Shipments starting with this board April 2020
+    * A couple testpoints added which allow starting the motor wheel test on poweron if TP4 is grounded. Selftest Requires firmware rev v36
+    * Onboard 3.3V power for serial drivers as well as other onboard 3.3V chips.  Host cpu need not supply 3.3V and perhaps be damaged
+    * The full battery power that goes to the large 50 pin connector to sonar board is now behind the electronic circuit breaker for safety
+    * Two leds show serial communications after the driver chips.  This will indicate when system is running 
+    * A LED to indicate WiFi state is now added.  Before this led was only on the Sonar Board. 
+    * Additional power mosfets added to allow for future greater power needs for both main power and motor power
+    * A 3-pin 12V fan jack has been added for customer use if desired
+    * Extra mounting holes added to support possible other host CPU types.
+    * A Reset switch that can reset the onboard processor was added
+    * A precision voltage source for the A to D is on the board but not loaded at this time
+    * Slightly shorter caps for the tallest of electrolytic caps on the back.  This is a minor improvement.
+    * A lot of silkscreen improvements for better servicing
 
 * `5.1` A minor but important revision was first produced April 2019.  
     * A major reliability fix to prevent failures of the motor ECB power switch/protection circuit. A re-design of the Motor Power ECB circuit that . Many value changes are involved as is the change of the M903_ECB_MOT MosFet to a much more powerful MosFet.
